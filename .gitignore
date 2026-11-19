@@ -1,0 +1,26 @@
+# Временные/генерируемые артефакты сборки — не коммитить
+Intermediate/
+build/intermediate/
+*.obj
+*.o
+*.res
+*.pdb
+*.ilk
+*.log
+
+# Готовые модули / выходы сборки (по умолчанию не публикуем; включи при необходимости)
+7zSfxMod/build/out/
+*.exe
+*.dll
+
+# Папки IDE
+.vs/
+.sln-cache/
+*.suo
+*.user
+
+# Локальные файлы
+*.local
+*.old
+*.bak
+.idea/
