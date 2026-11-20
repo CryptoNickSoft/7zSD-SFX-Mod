@@ -40,7 +40,7 @@ void	DeleteSFX( CSfxStringU moduleName );
 CSfxStringU SfxMultiByteToUnicodeString( const CSfxStringA &srcString, UINT codePage );
 CSfxStringA SfxUnicodeStringToMultiByte( const CSfxStringU &srcString, UINT codePage );
 
-const UInt64 kMaxCheckStartPosition = 1 << 20;
+const UInt64 kMaxCheckStartPosition = 1 << 21;  /* 2 MiB: larger icons/config shift the 7z signature deeper */
 
 char kSignatureConfigStart[] = ",!@Install@!UTF-8!";
 char kSignatureConfigEnd[] = ",!@InstallEnd@!";
