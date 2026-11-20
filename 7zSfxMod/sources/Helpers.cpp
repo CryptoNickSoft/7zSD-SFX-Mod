@@ -805,7 +805,14 @@ BOOL DeleteFileOrDirectoryAlways( LPCWSTR lpwszPathName )
 		return TRUE;
 #endif // _SFX_USE_TEST
 
-	for( unsigned i = 0; i < 256; i++ )
+	// Bounded retry budget: a few short attempts instead of a long spin.
+	// A locked file that is not released within ~1 second is treated as
+	// permanently busy. Waiting 65 seconds only hides the failure from the
+	// user: the window is already closed, and the folder is left half-deleted.
+	const unsigned	nAttempts = 5;
+	const DWORD		dwDelayMs = 200;
+
+	for( unsigned i = 0; i < nAttempts; i++ )
 	{
 		WIN32_FIND_DATA	fd;
 		HANDLE hFind = ::FindFirstFile( lpwszPathName, &fd );
@@ -818,8 +825,9 @@ BOOL DeleteFileOrDirectoryAlways( LPCWSTR lpwszPathName )
 		{
 			// file: never force-delete a file another process is still using.
 			if( SfxIsFileBusyForDelete( lpwszPathName ) != FALSE )
-				return FALSE;
-			ok = ( ClearFileAttributes(lpwszPathName) != FALSE ) && ( ::DeleteFile( lpwszPathName ) != FALSE );
+				ok = FALSE;
+			else
+				ok = ( ClearFileAttributes(lpwszPathName) != FALSE ) && ( ::DeleteFile( lpwszPathName ) != FALSE );
 		}
 		else
 		{
@@ -828,8 +836,8 @@ BOOL DeleteFileOrDirectoryAlways( LPCWSTR lpwszPathName )
 		}
 		if( ok )
 			return TRUE;
-		if( i + 1 < 256 )
-			::Sleep( i * 2 + 1 );
+		if( i + 1 < nAttempts )
+			::Sleep( dwDelayMs );
 	}
 	return FALSE;
 }
@@ -1719,3 +1727,146 @@ LPCWSTR IsPrefixPlatformAmd64( LPCWSTR lpwszString )
 	return NULL;
 }
 #endif // _SFX_USE_PREFIX_PLATFORM
+
+#ifdef _SFX_USE_SINGLEINSTANCE
+/*---------------------------------------------------------------------------*/
+/* Single-instance guard and activation                                      */
+/*---------------------------------------------------------------------------*/
+static HANDLE	s_hInstanceMutex = NULL;
+static HANDLE	s_hActivateEvent = NULL;
+
+#ifndef ASFW_ANY
+	#define ASFW_ANY	((DWORD)-1)
+#endif
+
+static DWORD SfxInstanceKeyHash( LPCWSTR lpwszKey )
+{
+	DWORD dwHash = 2166136261u;
+	for( ; lpwszKey != NULL && *lpwszKey != 0; lpwszKey++ )
+	{
+		WCHAR c = *lpwszKey;
+		if( c >= L'A' && c <= L'Z' )
+			c = (WCHAR)( c + ( L'a' - L'A' ) );
+		dwHash ^= (DWORD)(unsigned short)c;
+		dwHash *= 16777619u;
+	}
+	return dwHash;
+}
+
+static void SfxInstanceObjectName( LPCWSTR lpwszPrefix, LPCWSTR lpwszKey, LPWSTR lpwszName )
+{
+	wsprintf( lpwszName, L"Local\\%s_%08X", lpwszPrefix, (unsigned)SfxInstanceKeyHash( lpwszKey ) );
+}
+
+bool SfxTryAcquireSingleInstance( LPCWSTR lpwszKey )
+{
+	if( s_hInstanceMutex != NULL )
+		return true;
+	WCHAR wszName[64];
+	SfxInstanceObjectName( L"7zSfxInst", lpwszKey, wszName );
+	HANDLE hMutex = ::CreateMutexW( NULL, FALSE, wszName );
+	DWORD dwError = ::GetLastError();
+	if( hMutex == NULL )
+		return true;			// cannot create the guard, do not block startup
+	if( dwError == ERROR_ALREADY_EXISTS )
+	{
+		::CloseHandle( hMutex );
+		return false;
+	}
+	s_hInstanceMutex = hMutex;
+	return true;
+}
+
+typedef struct tagSFXACTCTX
+{
+	DWORD	dwPid;
+	HWND	hwndDialog;
+	HWND	hwndAny;
+} SFXACTCTX;
+
+static BOOL CALLBACK SfxActivateEnumProc( HWND hwnd, LPARAM lParam )
+{
+	SFXACTCTX * ctx = (SFXACTCTX *)lParam;
+	DWORD dwPid = 0;
+	WCHAR wszClass[64];
+	::GetWindowThreadProcessId( hwnd, &dwPid );
+	if( dwPid != ctx->dwPid )
+		return TRUE;
+	if( ::IsWindowVisible( hwnd ) == FALSE )
+		return TRUE;
+	if( ::GetWindow( hwnd, GW_OWNER ) != NULL )
+		return TRUE;
+	wszClass[0] = 0;
+	::GetClassNameW( hwnd, wszClass, 64 );
+	if( lstrcmpiW( wszClass, L"#32770" ) == 0 )
+	{
+		ctx->hwndDialog = hwnd;
+		return FALSE;	// dialog found, stop enumeration
+	}
+	if( ctx->hwndAny == NULL )
+		ctx->hwndAny = hwnd;
+	return TRUE;
+}
+
+static void SfxBringOwnWindowToFront()
+{
+	SFXACTCTX ctx;
+	ctx.dwPid = ::GetCurrentProcessId();
+	ctx.hwndDialog = NULL;
+	ctx.hwndAny = NULL;
+	::EnumWindows( SfxActivateEnumProc, (LPARAM)&ctx );
+	HWND hwnd = ctx.hwndDialog != NULL ? ctx.hwndDialog : ctx.hwndAny;
+	if( hwnd == NULL )
+		return;
+	if( ::IsIconic( hwnd ) != FALSE )
+		::ShowWindow( hwnd, SW_RESTORE );
+	::BringWindowToTop( hwnd );
+	::SetForegroundWindow( hwnd );
+	FLASHWINFO fi;
+	fi.cbSize = sizeof( fi );
+	fi.hwnd = hwnd;
+	fi.dwFlags = FLASHW_ALL;
+	fi.uCount = 3;
+	fi.dwTimeout = 0;
+	::FlashWindowEx( &fi );
+}
+
+static DWORD WINAPI SfxInstanceWatcherProc( LPVOID lpParam )
+{
+	HANDLE hEvent = (HANDLE)lpParam;
+	for(;;)
+	{
+		if( ::WaitForSingleObject( hEvent, INFINITE ) != WAIT_OBJECT_0 )
+			break;
+		SfxBringOwnWindowToFront();
+	}
+	return 0;
+}
+
+void SfxStartInstanceWatcher( LPCWSTR lpwszKey )
+{
+	if( s_hActivateEvent != NULL )
+		return;
+	WCHAR wszName[64];
+	SfxInstanceObjectName( L"7zSfxAct", lpwszKey, wszName );
+	s_hActivateEvent = ::CreateEventW( NULL, FALSE, FALSE, wszName );
+	if( s_hActivateEvent == NULL )
+		return;
+	HANDLE hThread = ::CreateThread( NULL, 0, SfxInstanceWatcherProc, s_hActivateEvent, 0, NULL );
+	if( hThread != NULL )
+		::CloseHandle( hThread );
+}
+
+bool SfxActivateRunningInstance( LPCWSTR lpwszKey )
+{
+	WCHAR wszName[64];
+	SfxInstanceObjectName( L"7zSfxAct", lpwszKey, wszName );
+	HANDLE hEvent = ::OpenEventW( EVENT_MODIFY_STATE, FALSE, wszName );
+	if( hEvent == NULL )
+		return false;
+	::AllowSetForegroundWindow( ASFW_ANY );
+	BOOL bResult = ::SetEvent( hEvent );
+	::CloseHandle( hEvent );
+	return bResult != FALSE;
+}
+#endif // _SFX_USE_SINGLEINSTANCE

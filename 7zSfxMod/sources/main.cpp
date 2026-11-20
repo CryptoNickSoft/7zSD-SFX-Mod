@@ -91,6 +91,7 @@ CSfxStringU	strTitle;
 CSfxArchive	gSfxArchive;
 
 bool	fUseInstallPath;
+int		nSingleInstanceMode;
 
 CSfxStringU	strModulePathName;
 CSfxStringU g_strCmdLineArchive;
@@ -156,8 +157,19 @@ void SfxInit()
 	}
 }
 
+void ReplaceWithProcessId( CSfxStringU& str )
+{
+	if( str.Find( L"SfxVarPID" ) < 0 && str.Find( L"%%PID%%" ) < 0 )
+		return;
+	WCHAR wszPid[16];
+	wsprintf( wszPid, L"%u", (unsigned)::GetCurrentProcessId() );
+	str.Replace( L"%SfxVarPID%", wszPid );
+	str.Replace( L"%%PID%%", wszPid );
+}
+
 void ReplaceVariables( CSfxStringU& str )
 {
+	ReplaceWithProcessId( str );
 	ExpandEnvironmentStrings( str );
 	ReplaceWithArchivePath( str, strSfxFolder );
 	ReplaceWithArchiveName( str, strSfxName );
@@ -937,6 +949,28 @@ SetConfigVariables();
 	}
 
 	ReplaceVariables( extractPath );
+
+#ifdef _SFX_USE_SINGLEINSTANCE
+	// Single-instance guard: only for a fixed (shared) extraction path.
+	// 0 = off (default), 1 = silent exit, 2 = activate the running copy.
+	if( (lpwszValue = GetTextConfigValue(CFG_SINGLEINSTANCE)) != NULL )
+	{
+		long nMode = StringToLong( lpwszValue );
+		if( nMode > 2 ) nMode = 2;
+		nSingleInstanceMode = (int)nMode;
+		if( nMode > 0 && fUseInstallPath != false && extractPath.IsEmpty() == false )
+		{
+			if( SfxTryAcquireSingleInstance( extractPath ) == false )
+			{
+				if( nMode == 2 )
+					SfxActivateRunningInstance( extractPath );
+				return ERRC_NONE;
+			}
+			if( nMode == 2 )
+				SfxStartInstanceWatcher( extractPath );
+		}
+	}
+#endif // _SFX_USE_SINGLEINSTANCE
 
 #ifdef _SFX_USE_BEGINPROMPTTIMEOUT
 	if( (lpwszValue = GetTextConfigValue( CFG_BEGINPROMPTTIMEOUT)) != NULL )

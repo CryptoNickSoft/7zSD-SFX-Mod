@@ -234,6 +234,12 @@ BOOL IsRunAsAdmin();
 int GetDirectorySeparatorPos( CSfxStringU& ustrPath );
 void CreateDummyWindow();
 void SfxCleanup();
+#ifdef _SFX_USE_SINGLEINSTANCE
+	bool SfxTryAcquireSingleInstance( LPCWSTR lpwszKey );
+	void SfxStartInstanceWatcher( LPCWSTR lpwszKey );
+	bool SfxActivateRunningInstance( LPCWSTR lpwszKey );
+#endif // _SFX_USE_SINGLEINSTANCE
+void ReplaceWithProcessId( CSfxStringU& str );
 void ReplaceVariablesEx( CSfxStringU& str );
 CSfxStringU MyGetEnvironmentVariable( LPCWSTR lpwszName );
 #ifdef _SFX_USE_LANG

@@ -115,6 +115,7 @@
 	#define _SFX_USE_SFXAPI					/* 'sfxapi:' prefix and tools archive */
 	#define _SFX_USE_EXTRACT_MASK			/* 'ExtractMask' config parameter */
 	#define _SFX_USE_COMPRESSED_CONFIG		/* 3900: compresed config as part of SfxAPI */
+	#define _SFX_USE_SINGLEINSTANCE			/* 'SingleInstance' config parameter: one copy per extract path */
 #endif // SFXBUILD_OPTIONS4
 
 /* SFXBUILD_OPTIONS5 (GUI options), defaults: all available */

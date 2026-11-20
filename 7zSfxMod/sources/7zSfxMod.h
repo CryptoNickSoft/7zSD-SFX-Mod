@@ -39,6 +39,7 @@
 #define CFG_MISCFLAGS					_CFG_PARAM_TYPE"MiscFlags"
 #define CFG_BEGINPROMPT					_CFG_PARAM_TYPE"BeginPrompt"
 #define CFG_INSTALLPATH					_CFG_PARAM_TYPE"InstallPath"
+#define CFG_SINGLEINSTANCE				_CFG_PARAM_TYPE"SingleInstance"
 #define CFG_ARCHIVE					_CFG_PARAM_TYPE"Archive"
 #define CFG_SFXAUTHOR					_CFG_PARAM_TYPE"SfxAuthor"
 #define CFG_EXTRACT_TITLE				_CFG_PARAM_TYPE"ExtractTitle"
