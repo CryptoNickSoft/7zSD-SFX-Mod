@@ -62,6 +62,13 @@ LPCWSTR ParseConfigOverride( LPCWSTR lpwszCommandLine )
 		CFG_EXTRACTMASK_INCLUDE,
 		CFG_EXTRACTMASK_EXCLUDE,
 #endif // _SFX_USE_EXTRACT_MASK
+		// MultiTool additions: allow override from the command line
+		CFG_LOGFILE,
+		CFG_RETRYATTEMPTS,
+#ifdef _SFX_USE_LANG
+		CFG_LANGUAGE,
+#endif // _SFX_USE_LANG
+		CFG_PAYLOADCRC,
 		NULL
 	};
 
@@ -96,6 +103,7 @@ LPCWSTR ParseConfigOverride( LPCWSTR lpwszCommandLine )
 			int nSwitchLen = (int)(p-(LPCWSTR)str);
 			str.ReleaseBuffer( nSwitchLen );
 			CSfxStringA	aStr= SfxUnicodeStringToMultiByte( str, CP_UTF8 );
+			::SfxLogAppend( L"[cmdline] ParseConfigOverride matched" );
 			if( GetTextConfig( aStr, true ) == false )
 				return (LPCWSTR)1;
 			return lpwszCommandLine + nSwitchLen;
@@ -240,7 +248,9 @@ LPCWSTR ParseCommandLineParameters()
 		}
 #endif // _SFX_USE_BEGINPROMPTTIMEOUT
 #ifdef SFX_CRYPTO
-		if( str[1] == L'p' || str[1] == L'P' )
+		// '-p[password]' / '-P[password]' — but NOT '-PayloadCRC=...' and similar
+		if( (str[1] == L'p' || str[1] == L'P') &&
+				!((str[2] == L'a' || str[2] == L'A') && MyStrincmp( str+2, L"ayload", 6 ) == 0) )
 		{
 			CSfxStringU password;
 			str = LoadQuotedString( str+2, password )-1;

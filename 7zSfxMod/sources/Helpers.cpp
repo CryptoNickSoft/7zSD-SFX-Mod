@@ -18,6 +18,33 @@
 	#include <comdef.h>
 #endif // _SFX_USE_IMAGES
 
+// --- install log (optional, LogFile=) ---
+void SfxLogInit()
+{
+	strLogFile.Empty();
+	if( GetTextConfigValue( CFG_LOGFILE ) != NULL )
+		strLogFile = GetTextConfigValue( CFG_LOGFILE );
+}
+
+void SfxLogAppend( LPCWSTR lpwszLine )
+{
+	if( strLogFile.IsEmpty() != false )
+		return;
+	if( nCleanMode & 8 ) // CleanMode bit 8: leave no auxiliary artifacts
+		return;
+	CSfxStringU lineU = lpwszLine;
+	lineU += L"\r\n";
+	CSfxStringA lineA = SfxUnicodeStringToMultiByte( lineU, CP_UTF8 );
+	HANDLE h = ::CreateFileW( strLogFile, FILE_APPEND_DATA, FILE_SHARE_READ,
+	                           NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
+	if( h == INVALID_HANDLE_VALUE )
+		return;
+	DWORD wrote = 0;
+	::WriteFile( h, (LPCVOID)(LPCSTR)lineA, lineA.Len(), &wrote, NULL );
+	::CloseHandle( h );
+}
+// --- /install log ---
+
 CSfxCurrentDirectory::CSfxCurrentDirectory( LPCWSTR lpwszNewFolder )
 {
 	DWORD dwSize = ::GetCurrentDirectory( 0, NULL );
@@ -827,7 +854,12 @@ BOOL DeleteFileOrDirectoryAlways( LPCWSTR lpwszPathName )
 			if( SfxIsFileBusyForDelete( lpwszPathName ) != FALSE )
 				ok = FALSE;
 			else
+			{
+				// CleanMode bit 4: overwrite contents before delete (anti-recovery)
+				if( nCleanMode & 4 )
+					SfxOverwriteFileBeforeDelete( lpwszPathName );
 				ok = ( ClearFileAttributes(lpwszPathName) != FALSE ) && ( ::DeleteFile( lpwszPathName ) != FALSE );
+			}
 		}
 		else
 		{
@@ -840,6 +872,37 @@ BOOL DeleteFileOrDirectoryAlways( LPCWSTR lpwszPathName )
 			::Sleep( dwDelayMs );
 	}
 	return FALSE;
+}
+
+// CleanMode bit 4: overwrite the file contents with zeros before deleting, so
+// the data cannot be recovered from the disk. Reopens with write access (after
+// ClearFileAttributes in the caller) and writes zeros in chunks.
+void SfxOverwriteFileBeforeDelete( LPCWSTR lpwszPathName )
+{
+	HANDLE h = ::CreateFileW( lpwszPathName, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
+	if( h == INVALID_HANDLE_VALUE )
+		return;
+	LARGE_INTEGER size;
+	if( ::GetFileSizeEx( h, &size ) != FALSE && size.QuadPart > 0 )
+	{
+		const DWORD chunk = (1 << 16);
+		Byte *zero = new Byte[chunk];
+		if( zero != NULL )
+		{
+			::memset( zero, 0, chunk );
+			__int64 left = size.QuadPart;
+			while( left > 0 )
+			{
+				DWORD toWrite = ( left >= chunk ) ? chunk : (DWORD)left;
+				DWORD wrote = 0;
+				if( ::WriteFile( h, zero, toWrite, &wrote, NULL ) == FALSE || wrote == 0 )
+					break;
+				left -= wrote;
+			}
+			delete[] zero;
+		}
+	}
+	::CloseHandle( h );
 }
 
 // Shortcut=<���>,<�������>,<���������>,<��������>,<��������>,<���������>

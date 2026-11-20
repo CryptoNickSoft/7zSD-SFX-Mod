@@ -105,6 +105,10 @@ extern bool		fUseBackward;
 extern CSfxStringU	strModulePathName;
 extern CSfxStringU	extractPath;
 extern CSfxStringU	strSfxFolder;
+extern CSfxStringU	strLogFile;			// LogFile= config value (optional install log)
+extern int			nRetryAttempts;		// RetryAttempts= config value (extract retries)
+extern unsigned long ulPayloadCRC;		// PayloadCRC= config value (expected CRC32 of 7z block, 0 = disabled)
+extern int nCleanMode;					// CleanMode= config value (bitmask: 1 self-del silent, 2 temp deep-clean, 4 overwrite before delete, 8 no artifacts)
 extern int			OverwriteMode, OverwriteFlags;
 
 // ExtractDlg
@@ -234,6 +238,9 @@ BOOL IsRunAsAdmin();
 int GetDirectorySeparatorPos( CSfxStringU& ustrPath );
 void CreateDummyWindow();
 void SfxCleanup();
+void SfxLogInit();
+void SfxLogAppend( LPCWSTR lpwszLine );
+void SfxOverwriteFileBeforeDelete( LPCWSTR lpwszPathName );
 #ifdef _SFX_USE_SINGLEINSTANCE
 	bool SfxTryAcquireSingleInstance( LPCWSTR lpwszKey );
 	void SfxStartInstanceWatcher( LPCWSTR lpwszKey );

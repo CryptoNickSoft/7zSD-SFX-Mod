@@ -23,6 +23,7 @@ SFX-модуль для 7-Zip, который позволяет создава�
 - параметр `SingleInstance="0|1|2"` — при фиксированном `InstallPath` вторая копия не распаковывается: `1` — тихо выходит, `2` — активирует окно первой;
 - переменная `%SfxVarPID%` (и `%%PID%%`) — идентификатор процесса в `InstallPath`, `RunProgram`, `Delete` и других раскрываемых параметрах;
 - удаление папки распаковки ограничено ~1 секундой (5 попыток по 200 мс) вместо прежних 256 повторов (~65 с);
+- **новые функции** (патч NEW FUNCTIONS): `LogFile`, `RetryAttempts`, `Language`, `PayloadCRC`, переопределение параметров из командной строки, `CleanMode` — см. `README-newfunc.md`.
 
 Модули собраны со статическим CRT и не требуют Visual C++ Redistributable.
 
@@ -54,7 +55,7 @@ build.cmd x64 All
 Готовые модули появляются в `7zSfxMod/build` (путь вывода задаётся makefile).
 
 Подробнее о сборке и правках — в `README-build.txt`, `README-loader.md`,
-`README-password.md`.
+`README-password.md`; о новых функциях — в `README-newfunc.md`.
 
 ## Тесты
 
@@ -95,7 +96,9 @@ with extra capabilities:
   and cleanup of one never touches the other's files;
 - **protection against force-deleting files in use** during cleanup
   (`SfxIsFileBusyForDelete`) — a file opened by another process is not removed;
-- fallback folder `%LOCALAPPDATA%\7zSFX_Temp` when `%TEMP%` is unavailable.
+- fallback folder `%LOCALAPPDATA%\7zSFX_Temp` when `%TEMP%` is unavailable;
+- **new functions** (NEW FUNCTIONS patch): `LogFile`, `RetryAttempts`, `Language`,
+  `PayloadCRC`, command-line parameter overrides, `CleanMode` — see `README-newfunc.md`.
 
 Modules are built with a static CRT and do not require Visual C++ Redistributable.
 

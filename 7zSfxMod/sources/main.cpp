@@ -95,6 +95,10 @@ int		nSingleInstanceMode;
 
 CSfxStringU	strModulePathName;
 CSfxStringU g_strCmdLineArchive;
+CSfxStringU strLogFile;
+int nRetryAttempts = 0;
+unsigned long ulPayloadCRC = 0;
+int nCleanMode = 0;
 CObjectVector<CTextConfigPair> gConfig;
 
 HMODULE	hKernel32;
@@ -385,6 +389,63 @@ void SetConfigVariables()
 	LPCWSTR	lpwszValue;
 	int from;
 
+	// Language= : force UI language (decimal or hex LangID, e.g. 1049 or 0x419)
+	// Must be applied before any GetLanguageString() caches idSfxLang.
+#ifdef _SFX_USE_LANG
+	if( (lpwszValue = GetTextConfigValue( CFG_LANGUAGE )) != NULL && lpwszValue[0] != L'\0' )
+	{
+		long idLang = (lpwszValue[0] == L'0' && (lpwszValue[1] == L'x' || lpwszValue[1] == L'X'))
+			? StringToLong( lpwszValue + 2 ) /* crude hex fallback */
+			: StringToLong( lpwszValue );
+		if( idLang > 0 && idLang <= 0xffff )
+			idSfxLang = (LANGID)idLang;
+	}
+#endif // _SFX_USE_LANG
+
+	// PayloadCRC= : expected CRC32 of the 7z data block (hex, e.g. 0x12345678).
+	// 0 / absent disables the self-check. Reset so repeated SetConfigVariables()
+	// passes (config reload + command-line reparse) never keep a stale value.
+	ulPayloadCRC = 0;
+	if( (lpwszValue = GetTextConfigValue( CFG_PAYLOADCRC )) != NULL && lpwszValue[0] != L'\0' )
+	{
+		if( lpwszValue[0] == L'0' && (lpwszValue[1] == L'x' || lpwszValue[1] == L'X') )
+		{
+			LPCWSTR p = lpwszValue + 2;
+			unsigned long v = 0;
+			while( *p != L'\0' )
+			{
+				int d = (*p >= L'0' && *p <= L'9') ? (*p - L'0')
+					: (*p >= L'a' && *p <= L'f') ? (*p - L'a' + 10)
+					: (*p >= L'A' && *p <= L'F') ? (*p - L'A' + 10) : -1;
+				if( d < 0 ) break;
+				v = (v << 4) | (unsigned long)d;
+				p++;
+			}
+			ulPayloadCRC = v;
+		}
+		else
+		{
+			ulPayloadCRC = (unsigned long)StringToLong( lpwszValue );
+		}
+		WCHAR wszDbg[128];
+		wsprintfW( wszDbg, L"[crc] cfg PayloadCRC=%s -> 0x%08X", lpwszValue, (unsigned)ulPayloadCRC );
+		::SfxLogAppend( wszDbg );
+	}
+	else
+	{
+		::SfxLogAppend( L"[crc] cfg PayloadCRC absent -> disabled" );
+	}
+
+	// CleanMode= : low-footprint cleanup bitmask
+	//   1 = silent self-delete of the exe (no visible cmd window)
+	//   2 = deep temp-folder cleanup (fallback + empty wrapper dirs)
+	//   4 = overwrite file contents before deleting (anti-recovery)
+	//   8 = leave no auxiliary artifacts (suppress install log)
+	nCleanMode = 0;
+	if( (lpwszValue = GetTextConfigValue( CFG_CLEANMODE )) != NULL && lpwszValue[0] != L'\0' )
+		nCleanMode = StringToLong( lpwszValue );
+	if( nCleanMode < 0 ) nCleanMode = 0;
+
 	// Main title
 	if( (lpwszValue = GetTextConfigValue( CFG_TITLE )) != NULL )
 	{
@@ -488,6 +549,98 @@ void SetConfigVariables()
 #endif // _SFX_USE_VOLUME_NAME_STYLE
 }
 
+// PayloadCRC= self-check: compute CRC32 of the 7z data block (from the '7z'
+// signature to the end of file) and compare with the expected value.
+static bool CheckPayloadCRC()
+{
+	if( ulPayloadCRC == 0 )
+		return true; // disabled
+
+	HANDLE hFile = ::CreateFileW( strModulePathName, GENERIC_READ, FILE_SHARE_READ,
+		NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
+	if( hFile == INVALID_HANDLE_VALUE )
+		return false;
+
+	static const Byte kSig[6] = { '7', 'z', 0xBC, 0xAF, 0x27, 0x1C };
+	const int kBufSize = (1 << 16);
+	Byte *buf = new Byte[kBufSize];
+	if( buf == NULL )
+	{
+		::CloseHandle( hFile );
+		return false;
+	}
+
+	// The real 7z archive is at the END of the file: the stub and the config
+	// block come before it. The stub itself may embed the '7z\xBC\xAF\x27\x1C'
+	// signature, so we must use the LAST occurrence, not the first.
+	// Strategy: scan the whole file for signature positions, keep the last one,
+	// then CRC from that position to EOF.
+	LARGE_INTEGER sizeLi = { 0 };
+	::GetFileSizeEx( hFile, &sizeLi );
+	__int64 fileSize = sizeLi.QuadPart;
+
+	__int64 lastSigPos = -1;
+	__int64 pos = 0;
+	Byte tail[5];
+	int tailLen = 0;
+
+	while( true )
+	{
+		DWORD read = 0;
+		if( ::ReadFile( hFile, buf + tailLen, kBufSize - tailLen, &read, NULL ) == FALSE || read == 0 )
+			break;
+		DWORD dataLen = tailLen + read;
+		__int64 basePos = pos - tailLen;
+
+		for( DWORD i = 0; i + 6 <= dataLen; i++ )
+		{
+			if( memcmp( buf + i, kSig, 6 ) == 0 )
+				lastSigPos = basePos + i;
+		}
+
+		pos += read;
+		// keep last 5 bytes for the overlap into the next chunk
+		tailLen = 5;
+		memcpy( buf, buf + dataLen - 5, 5 );
+	}
+
+	bool found = ( lastSigPos >= 0 );
+	if( found )
+	{
+		// seek to the last signature and CRC to EOF
+		LARGE_INTEGER li2 = { 0 };
+		li2.QuadPart = lastSigPos;
+		::SetFilePointerEx( hFile, li2, NULL, FILE_BEGIN );
+
+		UInt32 crc = CRC_INIT_VAL;
+		DWORD firstRead = 0;
+		DWORD wantFirst = (DWORD)( (fileSize - lastSigPos) < kBufSize ? (fileSize - lastSigPos) : kBufSize );
+		if( ::ReadFile( hFile, buf, wantFirst, &firstRead, NULL ) != FALSE && firstRead != 0 )
+		{
+			crc = CrcUpdate( crc, buf, firstRead );
+			while( true )
+			{
+				DWORD r2 = 0;
+				if( ::ReadFile( hFile, buf, kBufSize, &r2, NULL ) == FALSE || r2 == 0 )
+					break;
+				crc = CrcUpdate( crc, buf, r2 );
+			}
+			crc = CRC_GET_DIGEST( crc );
+			WCHAR wszCrc[40];
+			wsprintfW( wszCrc, L"[crc] ok computed=0x%08X", (unsigned)crc );
+			::SfxLogAppend( wszCrc );
+			delete[] buf;
+			::CloseHandle( hFile );
+			return ( crc == ulPayloadCRC );
+		}
+	}
+
+	delete[] buf;
+	::CloseHandle( hFile );
+	::SfxLogAppend( L"[crc] signature not found" );
+	return false;
+}
+
 void ShowSfxVersion()
 {
 	GUIFlags = GUIFLAGS_XPSTYLE;
@@ -522,6 +675,8 @@ void SfxCleanup()
 		DeleteFileOrDirectoryAlways( extractPath );
 		SfxCleanupFallbackTemp();
 	}
+	if( nCleanMode & 2 )
+		SfxCleanupFallbackTemp(); // deep temp cleanup (fallback base) even if install-path used
 }
 
 #include <new.h>
@@ -843,6 +998,7 @@ int APIENTRY WinMain( HINSTANCE hInstance,
 	if( (str=ParseCommandLineParameters()) == NULL )
 		return ERR_CONFIG_CMDLINE;
 SetConfigVariables();
+SfxLogInit();
 
     // External archive mode:
     //   loader.exe archive.7z   (argument or drag & drop)
@@ -1111,6 +1267,16 @@ Loc_BeginPrompt:
 		ExecuteBatch( CFG_PREEXTRACT, SFX_ON_LOAD_DIR, gSfxArchive.GetBatchInstall(), CSfxStringU(L""), L"" );
 	}
 #endif // _SFX_USE_CONFIG_EARLY_EXECUTE
+
+	// PayloadCRC= self-check: abort before extracting if the 7z data block is corrupted
+	if( CheckPayloadCRC() == false )
+	{
+		::SfxLogAppend( L"[crc] MISMATCH" );
+		if( GUIMode != GUIMODE_HIDDEN )
+			SfxErrorDialog( FALSE, ERR_7Z_CRC_ERROR );
+		return ERRC_EXTRACT;
+	}
+
 #ifdef _SFX_USE_TEST
 	HRESULT hrStatus;
 	if( TSD_ExtractTimeout == 0 )
@@ -1123,15 +1289,30 @@ Loc_BeginPrompt:
 			hrStatus = E_FAIL;
 	}
 #else
+	// RetryAttempts= : allow N retries when extraction fails (transient lock/AV)
+	LPCWSTR lpwszRetry = GetTextConfigValue( CFG_RETRYATTEMPTS );
+	nRetryAttempts = (lpwszRetry != NULL) ? _wtoi( lpwszRetry ) : 0;
+	if( nRetryAttempts < 0 ) nRetryAttempts = 0;
 	HRESULT hrStatus = ExtractArchive( extractPath );
+	int nTry = 0;
+	while( hrStatus != S_OK && nTry < nRetryAttempts )
+	{
+		SfxLogAppend( L"[extract] retry" );
+		::Sleep( 300 );
+		SfxCleanup();
+		hrStatus = ExtractArchive( extractPath );
+		nTry++;
+	}
 #endif // _SFX_USE_TEST
 
 	// delete temporary folder
 	if( hrStatus != S_OK )
 	{
+		SfxLogAppend( L"[extract] FAILED" );
 		SfxCleanup();
 		return ERRC_EXTRACT;
 	}
+	SfxLogAppend( L"[extract] OK" );
 
 	//
 	SetEnvironment();
@@ -1153,15 +1334,18 @@ Loc_BeginPrompt:
 				if( ::GetFileAttributes( ustrRunProgram ) == (DWORD)-1 )
 				{
 					// nothing to execute
+					SfxLogAppend( L"[run] setup.exe not found" );
 					SfxCleanup();
 					SfxErrorDialog( FALSE, ERR_NO_SETUP_EXE );
 					return ERRC_NOTHING_TO_EXECUTE;
 				}
+				SfxLogAppend( L"[run] executing setup.exe" );
 				ExecuteConfigProgram( CSfxStringU(lpwszValue), extractPath, fUseExecuteFile, ustrDirPrefix, str );
 			}
 		}
 		else
 		{
+			SfxLogAppend( L"[run] executing batch" );
 			ExecuteBatch( executeName, extractPath, gSfxArchive.GetBatchInstall(), ustrDirPrefix, str );
 		}
 	
@@ -1215,6 +1399,7 @@ Loc_BeginPrompt:
 		}
 	}
 	
+	SfxLogAppend( L"[done] OK" );
 	return ERRC_NONE;
 }
 
@@ -1231,6 +1416,17 @@ void DeleteSFX( CSfxStringU moduleName )
 	else
 	{
 		return;
+	}
+
+	// CleanMode bit 1: silent self-delete. A direct DeleteFileW of our own
+	// still-loaded image always fails, so schedule a reboot-delete as a
+	// catch-all fallback and then fall through to the hidden self-cleaning
+	// .cmd helper below, which retries the delete after this process exits
+	// and removes itself (no visible window, transient trace).
+	if( nCleanMode & 1 )
+	{
+		ClearFileAttributes( moduleName );
+		::MoveFileExW( moduleName, NULL, MOVEFILE_DELAY_UNTIL_REBOOT );
 	}
 
 	CSfxStringU tmpPath = CreateTempName( L".cmd" );

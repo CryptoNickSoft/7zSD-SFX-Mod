@@ -64,6 +64,11 @@
 #define CFG_PROGRESS					_CFG_PARAM_TYPE"Progress"
 #define CFG_SETENVIRONMENT				_CFG_PARAM_TYPE"SetEnvironment"
 #define CFG_BEGINPROMPTTIMEOUT			_CFG_PARAM_TYPE"BeginPromptTimeout"
+#define CFG_LOGFILE						_CFG_PARAM_TYPE"LogFile"
+#define CFG_RETRYATTEMPTS				_CFG_PARAM_TYPE"RetryAttempts"
+#define CFG_LANGUAGE					_CFG_PARAM_TYPE"Language"
+#define CFG_PAYLOADCRC				_CFG_PARAM_TYPE"PayloadCRC"
+#define CFG_CLEANMODE				_CFG_PARAM_TYPE"CleanMode"
 #ifdef SFX_CRYPTO
 	#define CFG_PASSWORD				_CFG_PARAM_TYPE"Password"
 	#define CFG_PASSWORD_TITLE			_CFG_PARAM_TYPE"PasswordTitle"
