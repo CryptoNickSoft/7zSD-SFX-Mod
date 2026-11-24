@@ -12,6 +12,8 @@ STDMETHODIMP CMultiStream::Read(void *data, UInt32 size, UInt32 *processedSize)
     return S_OK;
   if (_pos >= _totalLength)
     return S_OK;
+  if (Streams.IsEmpty())
+    return S_OK;
 
   {
     unsigned left = 0, mid = _streamIndex, right = Streams.Size();

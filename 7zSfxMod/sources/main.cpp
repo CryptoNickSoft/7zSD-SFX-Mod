@@ -551,96 +551,94 @@ void SetConfigVariables()
 
 // PayloadCRC= self-check: compute CRC32 of the 7z data block (from the '7z'
 // signature to the end of file) and compare with the expected value.
+static UInt32 ReadFullStream( IInStream * stream, Byte * buf, UInt32 size )
+{
+	UInt32 done = 0;
+	while( done < size )
+	{
+		UInt32 read = 0;
+		if( stream->Read( buf + done, size - done, &read ) != S_OK )
+			break;
+		if( read == 0 )
+			break;
+		done += read;
+	}
+	return done;
+}
+
+// PayloadCRC= self-check: CRC32 of the 7z data block (from the LAST '7z'
+// signature to the end of the stream) must match ulPayloadCRC. The stream is
+// the whole multivolume set, so all volumes are covered.
 static bool CheckPayloadCRC()
 {
 	if( ulPayloadCRC == 0 )
 		return true; // disabled
 
-	HANDLE hFile = ::CreateFileW( strModulePathName, GENERIC_READ, FILE_SHARE_READ,
-		NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
-	if( hFile == INVALID_HANDLE_VALUE )
+	IInStream * stream = gSfxArchive.GetStream();
+	if( stream == NULL )
 		return false;
 
 	static const Byte kSig[6] = { '7', 'z', 0xBC, 0xAF, 0x27, 0x1C };
-	const int kBufSize = (1 << 16);
+	const UInt32 kBufSize = (1 << 16);
 	Byte *buf = new Byte[kBufSize];
 	if( buf == NULL )
+		return false;
+
+	if( stream->Seek( 0, STREAM_SEEK_SET, NULL ) != S_OK )
 	{
-		::CloseHandle( hFile );
+		delete[] buf;
 		return false;
 	}
 
-	// The real 7z archive is at the END of the file: the stub and the config
-	// block come before it. The stub itself may embed the '7z\xBC\xAF\x27\x1C'
-	// signature, so we must use the LAST occurrence, not the first.
-	// Strategy: scan the whole file for signature positions, keep the last one,
-	// then CRC from that position to EOF.
-	LARGE_INTEGER sizeLi = { 0 };
-	::GetFileSizeEx( hFile, &sizeLi );
-	__int64 fileSize = sizeLi.QuadPart;
-
-	__int64 lastSigPos = -1;
-	__int64 pos = 0;
-	Byte tail[5];
-	int tailLen = 0;
-
-	while( true )
+	// The stub may embed the same signature, so keep the LAST occurrence.
+	UInt64 basePos = 0;
+	UInt64 lastSigPos = (UInt64)(Int64)-1;
+	UInt32 tailLen = 0;
+	for( ;; )
 	{
-		DWORD read = 0;
-		if( ::ReadFile( hFile, buf + tailLen, kBufSize - tailLen, &read, NULL ) == FALSE || read == 0 )
-			break;
-		DWORD dataLen = tailLen + read;
-		__int64 basePos = pos - tailLen;
-
-		for( DWORD i = 0; i + 6 <= dataLen; i++ )
+		UInt32 read = ReadFullStream( stream, buf + tailLen, kBufSize - tailLen );
+		UInt32 dataLen = tailLen + read;
+		for( UInt32 i = 0; i + 6 <= dataLen; i++ )
 		{
 			if( memcmp( buf + i, kSig, 6 ) == 0 )
 				lastSigPos = basePos + i;
 		}
-
-		pos += read;
-		// keep last 5 bytes for the overlap into the next chunk
-		tailLen = 5;
-		memcpy( buf, buf + dataLen - 5, 5 );
+		if( read == 0 )
+			break;
+		tailLen = (dataLen >= 5) ? 5 : dataLen;
+		memcpy( buf, buf + dataLen - tailLen, tailLen );
+		basePos += dataLen - tailLen;
 	}
 
-	bool found = ( lastSigPos >= 0 );
-	if( found )
+	if( lastSigPos == (UInt64)(Int64)-1 )
 	{
-		// seek to the last signature and CRC to EOF
-		LARGE_INTEGER li2 = { 0 };
-		li2.QuadPart = lastSigPos;
-		::SetFilePointerEx( hFile, li2, NULL, FILE_BEGIN );
-
-		UInt32 crc = CRC_INIT_VAL;
-		DWORD firstRead = 0;
-		DWORD wantFirst = (DWORD)( (fileSize - lastSigPos) < kBufSize ? (fileSize - lastSigPos) : kBufSize );
-		if( ::ReadFile( hFile, buf, wantFirst, &firstRead, NULL ) != FALSE && firstRead != 0 )
-		{
-			crc = CrcUpdate( crc, buf, firstRead );
-			while( true )
-			{
-				DWORD r2 = 0;
-				if( ::ReadFile( hFile, buf, kBufSize, &r2, NULL ) == FALSE || r2 == 0 )
-					break;
-				crc = CrcUpdate( crc, buf, r2 );
-			}
-			crc = CRC_GET_DIGEST( crc );
-			WCHAR wszCrc[40];
-			wsprintfW( wszCrc, L"[crc] ok computed=0x%08X", (unsigned)crc );
-			::SfxLogAppend( wszCrc );
-			delete[] buf;
-			::CloseHandle( hFile );
-			return ( crc == ulPayloadCRC );
-		}
+		delete[] buf;
+		::SfxLogAppend( L"[crc] signature not found" );
+		return false;
 	}
 
-	delete[] buf;
-	::CloseHandle( hFile );
-	::SfxLogAppend( L"[crc] signature not found" );
-	return false;
-}
 
+	if( stream->Seek( (Int64)lastSigPos, STREAM_SEEK_SET, NULL ) != S_OK )
+	{
+		delete[] buf;
+		return false;
+	}
+
+	UInt32 crc = CRC_INIT_VAL;
+	for( ;; )
+	{
+		UInt32 read = ReadFullStream( stream, buf, kBufSize );
+		if( read == 0 )
+			break;
+		crc = CrcUpdate( crc, buf, read );
+	}
+	crc = CRC_GET_DIGEST( crc );
+	WCHAR wszCrc[48];
+	wsprintfW( wszCrc, L"[crc] ok computed=0x%08X", (unsigned)crc );
+	::SfxLogAppend( wszCrc );
+	delete[] buf;
+	return ( crc == ulPayloadCRC );
+}
 void ShowSfxVersion()
 {
 	GUIFlags = GUIFLAGS_XPSTYLE;
@@ -686,6 +684,19 @@ int __cdecl sfx_new_handler( size_t size )
 	return 0;
 }
 
+static bool IsVolumeNameSuffix( LPCWSTR lpwszToken )
+{
+    int nLen = (int)wcslen( lpwszToken );
+    int nPos = nLen - 1;
+    int nDigits = 0;
+    while( nPos >= 0 && lpwszToken[nPos] >= L'0' && lpwszToken[nPos] <= L'9' )
+    {
+        nDigits++;
+        nPos--;
+    }
+    return ((nDigits == 3 || nDigits == 4) && nPos > 0 && lpwszToken[nPos] == L'.');
+}
+
 static bool IsCmdLineArchiveName( LPCWSTR lpwszToken )
 {
     if( lpwszToken == NULL || lpwszToken[0] == L'\0' )
@@ -697,7 +708,8 @@ static bool IsCmdLineArchiveName( LPCWSTR lpwszToken )
         if( *p == L'.' && (p[1]|0x20) == L'7' && (p[2]|0x20) == L'z' )
             return true;
     }
-    return false;
+    // multivolume sets: "payload.001", "setup.001" (no ".7z" in the name)
+    return IsVolumeNameSuffix( lpwszToken );
 }
 #ifdef _SFX_USE_CUSTOM_EXCEPTIONS
 int APIENTRY WinMain2( HINSTANCE hInstance,
@@ -998,6 +1010,12 @@ int APIENTRY WinMain( HINSTANCE hInstance,
 	if( (str=ParseCommandLineParameters()) == NULL )
 		return ERR_CONFIG_CMDLINE;
 SetConfigVariables();
+#if defined(SFX_VOLUMES) && defined(_SFX_USE_VOLUME_NAME_STYLE)
+	// Volumes in style 1 ("name.exe" + "name.001"...): the style is known only
+	// after the embedded config is parsed, so attach the volumes now and re-open.
+	if( nVolumeNameStyle != 0 && gSfxArchive.GetStreamsCount() <= 1 )
+		gSfxArchive.Reopen( strModulePathName );
+#endif // SFX_VOLUMES && _SFX_USE_VOLUME_NAME_STYLE
 SfxLogInit();
 
     // External archive mode:
@@ -1037,7 +1055,16 @@ SfxLogInit();
         fExternalArchive = true;
     }
 
-    gSfxArchive.Open();
+    if( gSfxArchive.Open() == false )
+    {
+        // report the missing volume instead of failing silently at extraction
+        LPCWSTR lpwszErrorName = gSfxArchive.GetVolumeError();
+        if( lpwszErrorName == NULL || lpwszErrorName[0] == L'\0' )
+            lpwszErrorName = (LPCWSTR)strModulePathName;
+        if( GUIMode != GUIMODE_HIDDEN )
+            SfxErrorDialog( FALSE, ERR_OPEN_ARCHIVE, lpwszErrorName );
+        return ERRC_OPEN_ARCHIVE;
+    }
     // Reinit config due possible changes in compressed version
     if( fExternalArchive == false )
     {
@@ -1049,6 +1076,16 @@ SfxLogInit();
 	gSfxArchive.LoadAndParseCompressedConfig();
 	ParseCommandLineParameters();
 	SetConfigVariables();
+#if defined(SFX_VOLUMES) && defined(_SFX_USE_VOLUME_NAME_STYLE)
+	// VolumeNameStyle may come from the compressed config (stored inside the
+	// archive): attach the volumes now and re-open the handler once.
+	if( fExternalArchive == false && nVolumeNameStyle != 0 && gSfxArchive.GetStreamsCount() <= 1 )
+	{
+		gSfxArchive.Close();
+		if( gSfxArchive.Reopen( strModulePathName ) )
+			gSfxArchive.Open();
+	}
+#endif // SFX_VOLUMES && _SFX_USE_VOLUME_NAME_STYLE
 
 #ifdef _SFX_USE_ELEVATION
 // Check elevation
@@ -1252,6 +1289,9 @@ Loc_BeginPrompt:
 	{
 		extractPath.ReleaseBuffer( extractPath.Len()-1 );
 	}
+
+	// relative InstallPath is resolved against the module folder
+	SfxMakeLongPath( extractPath, strSfxFolder );
 
 	if( gSfxArchive.GetAssumeYes() != false )
 		MiscFlags |= MISCFLAGS_NO_CHECK_DISK_FREE | MISCFLAGS_NO_CHECK_RAM;

@@ -23,7 +23,11 @@ void SfxLogInit()
 {
 	strLogFile.Empty();
 	if( GetTextConfigValue( CFG_LOGFILE ) != NULL )
+	{
 		strLogFile = GetTextConfigValue( CFG_LOGFILE );
+		// relative LogFile is resolved against the module folder
+		SfxMakeLongPath( strLogFile, strSfxFolder );
+	}
 }
 
 void SfxLogAppend( LPCWSTR lpwszLine )

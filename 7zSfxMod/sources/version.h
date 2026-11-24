@@ -11,14 +11,6 @@
 /*              Loader mode, Password, SfxAuthor, Archive                    */
 /*---------------------------------------------------------------------------*/
 /* Revision:    3900                                                         */
-/*---------------------------------------------------------------------------*/
-/* Revision:    4000                                                         */
-/* Updated:     Thu, 19 Nov 2026 12:00:00 GMT                                */
-/* Description: 7-Zip sources updated to 26.06                               */
-/*              Version 1.8.0, build 4000                                    */
-/*              Loader mode, Password, SfxAuthor, Archive                    */
-/*---------------------------------------------------------------------------*/
-/* Revision:    3900                                                         */
 /* Updated:     Fri, 01 Apr 2016 21:00:13 GMT                                */
 /*              by Oleg N. Scherbakov, mailto:oleg@7zsfx.info                */
 /* Description: + MiscFlags:                                                 */
@@ -364,14 +356,14 @@
 #define VERSION_SFX_NUM_TEXT		"1.8.0"
 #define VERSION_SFX_NUM_BIN			1,8,0,VERSION_REVISION
 #define VERSION_SFX_DATE_EN			"November 19, 2026"
-#define VERSION_SFX_DATE_RU			"19 ноября 2026"
+#define VERSION_SFX_DATE_RU			"19 пїЅпїЅпїЅпїЅпїЅпїЅ 2026"
 #define VERSION_SFX_BRANCH_EN		"develop"
 #define VERSION_SFX_BRANCH_RU		VERSION_SFX_BRANCH_EN
-#define VERSION_SFX_LEGAL_COPYRIGHT	"Copyright © 2005-2026 Oleg N. Scherbakov"
+#define VERSION_SFX_LEGAL_COPYRIGHT	"Copyright пїЅ 2005-2026 Oleg N. Scherbakov"
 
 #define VERSION_7ZIP_NUM_TEXT		"26.06"
 #define VERSION_7ZIP_DATE_EN		"November 6, 2026"
-#define VERSION_7ZIP_DATE_RU		"6 ноября 2026"
+#define VERSION_7ZIP_DATE_RU		"6 пїЅпїЅпїЅпїЅпїЅпїЅ 2026"
 #define VERSION_7ZIP_BRANCH_EN		""
 #define VERSION_7ZIP_BRANCH_RU		VERSION_7ZIP_BRANCH_EN
 
@@ -395,7 +387,7 @@
 #define VERSION_BUILD_TEXT	VERSION_BUILD_TEXT2(VERSION_REVISION)
 
 #define VERSION_SFX_TEXT_EN	VERSION_SFX_NUM_TEXT" "VERSION_SFX_BRANCH_EN" ["PLATFORM_NAME_A"] build "VERSION_BUILD_TEXT" ("VERSION_SFX_DATE_EN")"
-#define VERSION_SFX_TEXT_RU	VERSION_SFX_NUM_TEXT" "VERSION_SFX_BRANCH_RU" ["PLATFORM_NAME_A"] сборка "VERSION_BUILD_TEXT" ("VERSION_SFX_DATE_RU")"
+#define VERSION_SFX_TEXT_RU	VERSION_SFX_NUM_TEXT" "VERSION_SFX_BRANCH_RU" ["PLATFORM_NAME_A"] пїЅпїЅпїЅпїЅпїЅпїЅ "VERSION_BUILD_TEXT" ("VERSION_SFX_DATE_RU")"
 
 #define VERSION_7ZIP_TEXT_EN	VERSION_7ZIP_NUM_TEXT" "VERSION_7ZIP_BRANCH_EN" ("VERSION_7ZIP_DATE_EN")"
 #define VERSION_7ZIP_TEXT_RU	VERSION_7ZIP_NUM_TEXT" "VERSION_7ZIP_BRANCH_RU" ("VERSION_7ZIP_DATE_RU")"

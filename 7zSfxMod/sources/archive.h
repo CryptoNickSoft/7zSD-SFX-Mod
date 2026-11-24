@@ -87,6 +87,9 @@ public:
 	bool Init( LPCWSTR lpwszFileName );
 	bool Reopen( LPCWSTR lpwszFileName );
 	bool Open();
+	void Close();
+	LPCWSTR GetVolumeError();
+	UInt32 GetStreamsCount();
 	IInStream * GetStream() { return m_stream; };
 	IInArchive * GetHandler() { return m_handler; };
 	UInt32 GetItemsCount();

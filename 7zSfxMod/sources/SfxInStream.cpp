@@ -18,25 +18,17 @@
 HRESULT CSfxInStream::OpenSubStream( LPCTSTR fileName, CSubStreamInfo * subStream )
 {
 	CInFileStream * streamSpec = new CInFileStream;
+	CMyComPtr<IInStream> stream( streamSpec );
 	if( !streamSpec->Open(fileName) )
-	{
-		delete streamSpec;
 		return S_FALSE;
-	}
-	subStream->Stream = streamSpec;
-
-	WIN32_FIND_DATA	fd;
-	HANDLE hFind;
+	// size comes from the opened handle: no extra FindFirstFile and no
+	// dangling pointer if the lookup fails (see audit: use-after-free)
 	UInt64 size = 0;
-	if( (hFind = ::FindFirstFile( fileName, &fd )) != INVALID_HANDLE_VALUE )
-	{
-		((DWORD *)&subStream->Size)[0] = fd.nFileSizeLow;
-		((DWORD *)&subStream->Size)[1] = fd.nFileSizeHigh;
-		::FindClose( hFind );
-		return S_OK;
-	}
-	delete streamSpec;
-	return S_FALSE;
+	if( !streamSpec->GetLength( size ) )
+		return S_FALSE;
+	subStream->Size = size;
+	subStream->Stream = stream;
+	return S_OK;
 }
 
 bool CSfxInStream::Open(LPCTSTR fileName)
@@ -47,7 +39,7 @@ bool CSfxInStream::Open(LPCTSTR fileName)
 	if( OpenSubStream( fileName, &stream ) != S_OK )
 		return false;
 	Streams.Add( stream );
-	InitVolumes();
+	InitVolumes( fileName );
 	CMultiStream::Init();
 	return true;
 }
@@ -64,12 +56,35 @@ static int ReverseFindOneOf( CSfxStringU& src, LPCWSTR chars )
 	return -1;
 }
 
+// true if str[nPos..] is a 3..4 digit volume index ("001", "010", "1000")
+static bool IsVolumeIndex( const CSfxStringU& str, int nPos )
+{
+	int nLen = str.Len() - nPos;
+	if( nLen != 3 && nLen != 4 )
+		return false;
+	for( int i = nPos; i < str.Len(); i++ )
+		if( str[i] < L'0' || str[i] > L'9' )
+			return false;
+	return true;
+}
+
 // style 0: (name.7z.001.exe, name.7z.002, ...) || (name.001.exe, name.002, ...)
 // style 1: name.exe, name.001, ...
-static int GetVolumesName( CSfxStringU& baseName )
+// loader:  name.7z.001 / name.001 (the opened file is already the first volume)
+static int GetVolumesName( CSfxStringU& baseName, LPCTSTR fileName )
 {
-	baseName = strModulePathName;
+	baseName = fileName;
+
+	// External archive: the name itself ends with a volume index
 	int nExtPos = ReverseFindOneOf( baseName, L".\\/" );
+	if( nExtPos > 0 && baseName[nExtPos] == L'.' && IsVolumeIndex( baseName, nExtPos + 1 ) )
+	{
+		CSfxStringU strIndex = ((const wchar_t *)baseName) + nExtPos + 1;
+		int nStart = (int)StringToLong( (const wchar_t *)strIndex ) + 1;
+		baseName.ReleaseBuffer(nExtPos);
+		return nStart;
+	}
+
 	if( nExtPos <= 0 || baseName[nExtPos] != L'.' )
 		return -1;
 	baseName.ReleaseBuffer(nExtPos);
@@ -79,14 +94,12 @@ static int GetVolumesName( CSfxStringU& baseName )
 	case 1:
 		{
 			int nExtPos1 = ReverseFindOneOf( baseName, L".\\/" );
-			if( nExtPos1 >= 0 && baseName[nExtPos1] == L'.' && (nExtPos-nExtPos1) == 4 /* ".00x" */ )
+			if( nExtPos1 > 0 && baseName[nExtPos1] == L'.' && IsVolumeIndex( baseName, nExtPos1 + 1 ) )
 			{
-				CSfxStringU tmp = baseName.Mid(nExtPos1+1,2);
-				if( tmp == L"00" )
-				{
-					baseName.ReleaseBuffer(nExtPos1);
-					return StringToLong(((const wchar_t *)baseName)+nExtPos1+1)+1;
-				}
+				CSfxStringU strIndex = ((const wchar_t *)baseName) + nExtPos1 + 1;
+				int nStart = (int)StringToLong( (const wchar_t *)strIndex ) + 1;
+				baseName.ReleaseBuffer(nExtPos1);
+				return nStart;
 			}
 			return 1;
 		}
@@ -95,11 +108,12 @@ static int GetVolumesName( CSfxStringU& baseName )
 		int nExtPos = ReverseFindOneOf( baseName, L".\\/" );
 		if( nExtPos <= 0 || baseName[nExtPos] != L'.' )
 			return -1;
-		CSfxStringU tmp = baseName.Mid(nExtPos+1,2);
-		if( tmp == L"00" )
+		if( IsVolumeIndex( baseName, nExtPos + 1 ) )
 		{
+			CSfxStringU strIndex = ((const wchar_t *)baseName) + nExtPos + 1;
+			int nStart = (int)StringToLong( (const wchar_t *)strIndex ) + 1;
 			baseName.ReleaseBuffer(nExtPos);
-			return StringToLong(((const wchar_t *)baseName)+nExtPos+1)+1;
+			return nStart;
 		}
 #ifdef _SFX_USE_VOLUME_NAME_STYLE
 	}
@@ -107,11 +121,12 @@ static int GetVolumesName( CSfxStringU& baseName )
 		return -1;
 }
 
-bool CSfxInStream::InitVolumes()
+bool CSfxInStream::InitVolumes( LPCTSTR fileName )
 {
 	CSubStreamInfo	subStream;
 	CSfxStringU baseName;
-	int nStartVolume = GetVolumesName( baseName );
+	m_strVolumeError.Empty();
+	int nStartVolume = GetVolumesName( baseName, fileName );
 
 	if( nStartVolume == -1 )
 		return false;
@@ -125,7 +140,12 @@ bool CSfxInStream::InitVolumes()
 		if( OpenSubStream( strVolume, &subStream ) == S_OK )
 			Streams.Add( subStream );
 		else
+		{
+			// keep the first missing name: it is shown when the archive
+			// still fails to open (incomplete volume set)
+			m_strVolumeError = strVolume;
 			break;
+		}
 	}
 	return true;
 }

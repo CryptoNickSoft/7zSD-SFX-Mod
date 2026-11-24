@@ -91,7 +91,9 @@ bool CSfxArchive::Open()
 		return true;
 
 #ifdef SFX_CRYPTO
-	CSfxArchive::CPassword * passwordCallback = new CSfxArchive::CPassword;
+	// keep the callback alive: the handler stores it by CMyComPtr, but the
+	// raw pointer must be released (audit: memory leak on every Open)
+	CMyComPtr<IArchiveOpenCallback> passwordCallback = new CSfxArchive::CPassword;
 	m_stream->Seek( 0, STREAM_SEEK_SET, NULL );
 	result = m_handler->Open( m_stream, &kMaxCheckStartPosition, passwordCallback );
 #else
@@ -100,6 +102,29 @@ bool CSfxArchive::Open()
 	if( result == S_OK )
 		return true;
 	return false;
+}
+
+void CSfxArchive::Close()
+{
+	m_handler->Close();
+}
+
+UInt32 CSfxArchive::GetStreamsCount()
+{
+#ifdef SFX_VOLUMES
+	return m_streamSpec->GetStreamsCount();
+#else
+	return 1;
+#endif
+}
+
+LPCWSTR CSfxArchive::GetVolumeError()
+{
+#ifdef SFX_VOLUMES
+	return m_streamSpec->GetVolumeError();
+#else
+	return L"";
+#endif
 }
 
 #ifdef _SFX_USE_COMPRESSED_CONFIG

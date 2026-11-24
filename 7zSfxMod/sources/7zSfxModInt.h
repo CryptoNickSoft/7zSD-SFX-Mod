@@ -301,12 +301,13 @@ void CreateConfigSignature(
 	public:
 #ifdef SFX_VOLUMES
 		bool Open(LPCTSTR fileName);
-		bool InitVolumes();
-		IInStream * GetVolumesStream();
+		bool InitVolumes( LPCTSTR fileName );
 		UInt32 GetStreamsCount() { return Streams.Size(); };
+		LPCWSTR GetVolumeError() { return m_strVolumeError; };
 
 	private:
 		HRESULT OpenSubStream( LPCTSTR fileName, CSubStreamInfo * subStream );
+		CSfxStringU	m_strVolumeError;
 #endif // SFX_VOLUMES
 	};
 #endif // !defined(SFX_VOLUMES) && !defined(SFX_PROTECT)
