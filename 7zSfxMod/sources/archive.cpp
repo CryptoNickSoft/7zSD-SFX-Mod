@@ -11,6 +11,7 @@
 
 #ifdef SFX_CRYPTO
 	bool		CSfxArchive::CPassword::m_fPasswordDefined = false;
+	bool		CSfxArchive::CPassword::m_fPasswordUsed = false;
 	CSfxStringU	CSfxArchive::CPassword::m_strPassword;
 	int			CSfxArchive::CPassword::m_nAttempts = 0;
 	bool		CSfxArchive::CPassword::m_fAuthorCodeDefined = false;
@@ -21,10 +22,16 @@
 	HRESULT CSfxArchive::CPassword::GetTextPassword(BSTR *password)
 	{
 		if( IsDefined() != false )
+		{
+			m_fPasswordUsed = true; // 7-Zip asks only for an encrypted archive
 			return StringToBstr(Get(), password);
+		}
 		/* password from SfxAuthor code (as in the original module) */
 		if( IsAuthorCodeDefined() != false )
+		{
+			m_fPasswordUsed = true;
 			return StringToBstr((LPCWSTR)m_strAuthorCode, password);
+		}
 		if( ((MiscFlags&MISCFLAGS_LATE_PASSWORD) == 0 && ShowDialog() != FALSE) )
 			return StringToBstr(Get(), password);
 		return E_FAIL;

@@ -240,6 +240,7 @@ void CreateDummyWindow();
 void SfxCleanup();
 void SfxLogInit();
 void SfxLogAppend( LPCWSTR lpwszLine );
+bool SfxLogReady();
 void SfxOverwriteFileBeforeDelete( LPCWSTR lpwszPathName );
 #ifdef _SFX_USE_SINGLEINSTANCE
 	bool SfxTryAcquireSingleInstance( LPCWSTR lpwszKey );

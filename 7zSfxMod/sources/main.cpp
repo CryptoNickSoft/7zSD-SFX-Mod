@@ -427,13 +427,26 @@ void SetConfigVariables()
 		{
 			ulPayloadCRC = (unsigned long)StringToLong( lpwszValue );
 		}
-		WCHAR wszDbg[128];
-		wsprintfW( wszDbg, L"[crc] cfg PayloadCRC=%s -> 0x%08X", lpwszValue, (unsigned)ulPayloadCRC );
-		::SfxLogAppend( wszDbg );
+		// SetConfigVariables() runs twice per start: log the setting only when it changes
+		static bool fCrcLogged = false;
+		static unsigned long ulCrcLogged = 0;
+		if( SfxLogReady() && ( fCrcLogged == false || ulCrcLogged != ulPayloadCRC ) )
+		{
+			WCHAR wszDbg[128];
+			wsprintfW( wszDbg, L"[crc] cfg PayloadCRC=%s -> 0x%08X", lpwszValue, (unsigned)ulPayloadCRC );
+			::SfxLogAppend( wszDbg );
+			fCrcLogged = true;
+			ulCrcLogged = ulPayloadCRC;
+		}
 	}
 	else
 	{
-		::SfxLogAppend( L"[crc] cfg PayloadCRC absent -> disabled" );
+		static bool fCrcAbsentLogged = false;
+		if( SfxLogReady() && fCrcAbsentLogged == false )
+		{
+			::SfxLogAppend( L"[crc] cfg PayloadCRC absent -> disabled" );
+			fCrcAbsentLogged = true;
+		}
 	}
 
 	// CleanMode= : low-footprint cleanup bitmask
@@ -1439,6 +1452,12 @@ Loc_BeginPrompt:
 		}
 	}
 	
+	// password configured but 7-Zip never asked for it: the archive is not encrypted
+	if( CSfxArchive::CPassword::IsDefined() != false || CSfxArchive::CPassword::IsAuthorCodeDefined() != false )
+	{
+		if( CSfxArchive::CPassword::WasUsed() == false )
+			SfxLogAppend( L"[password] archive is not encrypted - password not required" );
+	}
 	SfxLogAppend( L"[done] OK" );
 	return ERRC_NONE;
 }

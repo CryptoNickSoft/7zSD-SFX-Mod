@@ -28,6 +28,24 @@ void SfxLogInit()
 		// relative LogFile is resolved against the module folder
 		SfxMakeLongPath( strLogFile, strSfxFolder );
 	}
+	if( strLogFile.IsEmpty() == false )
+	{
+		// run header: the log is appended across runs, so mark where each one starts
+		SYSTEMTIME st;
+		::GetLocalTime( &st );
+		WCHAR wszHdr[160];
+		wsprintfW( wszHdr, L"=== %04u-%02u-%02u %02u:%02u:%02u pid=%u ===",
+			(unsigned)st.wYear, (unsigned)st.wMonth, (unsigned)st.wDay,
+			(unsigned)st.wHour, (unsigned)st.wMinute, (unsigned)st.wSecond,
+			(unsigned)::GetCurrentProcessId() );
+		SfxLogAppend( wszHdr );
+	}
+}
+
+// log is usable only after SfxLogInit() resolved LogFile=
+bool SfxLogReady()
+{
+	return strLogFile.IsEmpty() == false;
 }
 
 void SfxLogAppend( LPCWSTR lpwszLine )

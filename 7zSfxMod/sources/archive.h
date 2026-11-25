@@ -31,6 +31,7 @@ public:
 		static LPCWSTR Get() { return m_strPassword; };
 		static BOOL ShowDialog();
 		static bool IsDefined() { return m_fPasswordDefined; };
+		static bool WasUsed() { return m_fPasswordUsed; };
 		static int GetAttempts() { return m_nAttempts; };
 		static void SetAuthorCode( LPCWSTR lpwszCode ) { m_strAuthorCode = lpwszCode; m_fAuthorCodeDefined = (m_strAuthorCode.IsEmpty() == false); };
 		static bool IsAuthorCodeDefined() { return m_fAuthorCodeDefined; };
@@ -40,6 +41,7 @@ public:
 
 	private:
 		static bool				m_fPasswordDefined;
+		static bool				m_fPasswordUsed;
 		static CSfxStringU		m_strPassword;
 		static int				m_nAttempts;
 		static bool				m_fAuthorCodeDefined;
