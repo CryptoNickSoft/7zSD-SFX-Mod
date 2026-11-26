@@ -67,7 +67,7 @@ build.cmd x64 All
 
 ```
 test\test_all.ps1        проверка всех модулей (распаковка + запуск)
-test\test_features.ps1   SfxAuthor / Archive
+test\test_features.ps1   Archive (loader mode)
 ```
 
 ## Лицензия
@@ -149,7 +149,7 @@ build details and the changes made.
 
 ```
 test\test_all.ps1        checks every module (extraction + run)
-test\test_features.ps1   SfxAuthor / Archive
+test\test_features.ps1   Archive (loader mode)
 ```
 
 ## License

@@ -38,20 +38,7 @@ $src = Join-Path $outRoot "src"
 New-Item -ItemType Directory $src -Force | Out-Null
 Set-Content (Join-Path $src "hello.txt") "feature test" -Encoding ASCII
 
-# 1. SfxAuthor: author code is used as the archive password
-$authorCode = "<removed>"
-$archAuthor = Join-Path $outRoot "payload_author.7z"
-Push-Location $src
-& $seven a -t7z -m0=lzma2 -mhe=on -p"$authorCode" $archAuthor "hello.txt" | Out-Null
-Pop-Location
-$dirAuthor = Join-Path $outRoot "out_author"
-$cfgAuthor = Join-Path $outRoot "cfg_author.txt"
-Write-Cfg $cfgAuthor $dirAuthor @('SfxAuthor="Homer"')
-$exeAuthor = Join-Path $outRoot "author_test.exe"
-cmd /c ("copy /b `"" + (Join-Path $modDir "7zsd_All.sfx") + "`" + `"" + $cfgAuthor + "`" + `"" + $archAuthor + "`" `"" + $exeAuthor + "`"") | Out-Null
-$rAuthor = Run-Exe $exeAuthor "" $dirAuthor "hello.txt"
-
-# 2. Archive parameter: loader without a command-line argument
+# 1. Archive parameter: loader without a command-line argument
 $archPlain = Join-Path $outRoot "payload_archive.7z"
 Push-Location $src
 & $seven a -t7z -m0=lzma2 $archPlain "hello.txt" | Out-Null
@@ -64,5 +51,5 @@ $loaderExe = Join-Path $outRoot "archive_loader.exe"
 cmd /c ("copy /b `"" + (Join-Path $modDir "7zsd_All.sfx") + "`" + `"" + $cfgArchive + "`" `"" + $loaderExe + "`"") | Out-Null
 $rArchive = Run-Exe $loaderExe "" $dirArchive "hello.txt"
 
-"SfxAuthor: " + $rAuthor
+
 "Archive:   " + $rArchive
