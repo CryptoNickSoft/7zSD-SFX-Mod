@@ -1,7 +1,0 @@
-;!@Install@!UTF-8!
-Title="Loader example"
-GUIMode="2"
-; No InstallPath: the module extracts into its own UNIQUE temp folder
-; and removes it when done. RunProgram runs from that folder.
-RunProgram="cmd.exe /c copy /y hello.txt installed.txt"
-;!@InstallEnd@!

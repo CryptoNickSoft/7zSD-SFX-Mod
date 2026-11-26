@@ -38,25 +38,23 @@ SFX-модуль для 7-Zip, который позволяет создава�
 shim/               заглушка afxres.h (MFC-заголовок отсутствует в VS Build Tools)
 test/               тесты (test_all.ps1, test_features.ps1)
 build.cmd           сборка модуля (без жёстких путей)
-dist_loader_ru/     готовый комплект RU: 12 модулей, справка, пример
-dist_loader_en/     готовый комплект EN: 12 модулей, справка, пример
-7zsd_180_4000_loader_ru.7z   релизный архив RU (то же самое одним .7z)
-7zsd_180_4000_loader_en.7z   релизный архив EN
+7zsd_180_4000_loader_ru.7z   релиз RU: 12 модулей, справка RU, пример
+7zsd_180_4000_loader_en.7z   релиз EN: то же с английской справкой
 README-*.md/.txt    документация доработок
 LICENSE.md          лицензия
 ```
 
 ## Готовые сборки
 
-В репозитории лежат собранные модули (build 4000, 7-Zip 26.06):
+Собранные модули (build 4000, 7-Zip 26.06) — в релизных архивах:
 
-| Каталог | Содержимое |
+| Архив | Содержимое |
 |---|---|
-| `dist_loader_ru/` | 12 модулей x86/x64, справка `7zSD_RU_plus.chm`/`.txt`, пример `example/` |
-| `dist_loader_en/` | то же с английской справкой |
+| `7zsd_180_4000_loader_ru.7z` | 12 модулей x86/x64, справка `7zSD_RU_plus.chm`/`.txt`, пример `example/` |
+| `7zsd_180_4000_loader_en.7z` | то же с английской справкой |
 
-Те же комплекты одним архивом: `7zsd_180_4000_loader_ru.7z`,
-`7zsd_180_4000_loader_en.7z` (7-Zip, `-mx=9`).
+Распаковать 7-Zip или любым архиватором; установка не требуется.
+
 ## Сборка
 
 Требования: Visual Studio 2022 Build Tools (MSVC), целевые x86/x64.
@@ -128,25 +126,23 @@ Modules are built with a static CRT and do not require Visual C++ Redistributabl
 shim/               afxres.h stub (MFC header absent from VS Build Tools)
 test/               tests (test_all.ps1, test_features.ps1)
 build.cmd           module build script (no hard-coded paths)
-dist_loader_ru/     ready-to-use RU kit: 12 modules, help, example
-dist_loader_en/     ready-to-use EN kit: 12 modules, help, example
-7zsd_180_4000_loader_ru.7z   RU release archive (the kit as a single .7z)
-7zsd_180_4000_loader_en.7z   EN release archive
+7zsd_180_4000_loader_ru.7z   RU release: 12 modules, RU help, example
+7zsd_180_4000_loader_en.7z   EN release: same with English help
 README-*.md/.txt    documentation of the changes
 LICENSE.md          license
 ```
 
 ## Ready builds
 
-Prebuilt modules are included (build 4000, 7-Zip 26.06):
+Prebuilt modules (build 4000, 7-Zip 26.06) are in the release archives:
 
-| Folder | Contents |
+| Archive | Contents |
 |---|---|
-| `dist_loader_ru/` | 12 x86/x64 modules, Russian help `7zSD_RU_plus.chm`/`.txt`, `example/` |
-| `dist_loader_en/` | the same with English help |
+| `7zsd_180_4000_loader_ru.7z` | 12 x86/x64 modules, Russian help `7zSD_RU_plus.chm`/`.txt`, `example/` |
+| `7zsd_180_4000_loader_en.7z` | the same with English help |
 
-The same kits as single archives: `7zsd_180_4000_loader_ru.7z`,
-`7zsd_180_4000_loader_en.7z` (7-Zip, `-mx=9`).
+Unpack with 7-Zip or any archiver; no installation needed.
+
 ## Building
 
 Requirements: Visual Studio 2022 Build Tools (MSVC), target x86/x64.

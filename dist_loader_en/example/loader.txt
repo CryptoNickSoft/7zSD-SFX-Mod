@@ -1,5 +1,0 @@
-;!@Install@!UTF-8!
-Title="Loader example"
-GUIMode="2"
-Password="ChangeMe123"
-;!@InstallEnd@!
