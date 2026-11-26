@@ -38,22 +38,15 @@ SFX-модуль для 7-Zip, который позволяет создава�
 shim/               заглушка afxres.h (MFC-заголовок отсутствует в VS Build Tools)
 test/               тесты (test_all.ps1, test_features.ps1)
 build.cmd           сборка модуля (без жёстких путей)
-7zsd_180_4000_loader_ru.7z   релиз RU: 12 модулей, справка RU, пример
-7zsd_180_4000_loader_en.7z   релиз EN: то же с английской справкой
 README-*.md/.txt    документация доработок
 LICENSE.md          лицензия
 ```
 
 ## Готовые сборки
 
-Собранные модули (build 4000, 7-Zip 26.06) — в релизных архивах:
-
-| Архив | Содержимое |
-|---|---|
-| `7zsd_180_4000_loader_ru.7z` | 12 модулей x86/x64, справка `7zSD_RU_plus.chm`/`.txt`, пример `example/` |
-| `7zsd_180_4000_loader_en.7z` | то же с английской справкой |
-
-Распаковать 7-Zip или любым архиватором; установка не требуется.
+Готовых бинарников в репозитории нет: модули собираются из исходников
+скриптом `build.cmd` (см. ниже). Готовые наборы публикуются как
+артефакты релизов на GitHub.
 
 ## Сборка
 
@@ -126,22 +119,15 @@ Modules are built with a static CRT and do not require Visual C++ Redistributabl
 shim/               afxres.h stub (MFC header absent from VS Build Tools)
 test/               tests (test_all.ps1, test_features.ps1)
 build.cmd           module build script (no hard-coded paths)
-7zsd_180_4000_loader_ru.7z   RU release: 12 modules, RU help, example
-7zsd_180_4000_loader_en.7z   EN release: same with English help
 README-*.md/.txt    documentation of the changes
 LICENSE.md          license
 ```
 
 ## Ready builds
 
-Prebuilt modules (build 4000, 7-Zip 26.06) are in the release archives:
-
-| Archive | Contents |
-|---|---|
-| `7zsd_180_4000_loader_ru.7z` | 12 x86/x64 modules, Russian help `7zSD_RU_plus.chm`/`.txt`, `example/` |
-| `7zsd_180_4000_loader_en.7z` | the same with English help |
-
-Unpack with 7-Zip or any archiver; no installation needed.
+This repository ships no binaries: modules are built from source with
+`build.cmd` (see below). Prebuilt kits are published as GitHub release
+assets.
 
 ## Building
 
